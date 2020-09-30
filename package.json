@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@hapi/joi": "^17.1.1",
+    "@renovate/pep440": "^0.4.1",
     "@sentry/node": "^5.24.2",
     "@shields_io/camp": "^18.0.0",
     "badge-maker": "file:badge-maker",

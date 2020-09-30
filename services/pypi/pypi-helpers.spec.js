@@ -7,6 +7,7 @@ const {
   sortDjangoVersions,
   getLicenses,
   getPackageFormats,
+  getPythonVersionsFromPythonRequires,
 } = require('./pypi-helpers')
 
 const classifiersFixture = {
@@ -167,5 +168,14 @@ describe('PyPI helpers', function () {
         ],
       },
     }).expect({ hasWheel: false, hasEgg: true })
+  })
+
+  test(getPythonVersionsFromPythonRequires, () => {
+    given({ info: { requires_python: null } }).expect(undefined)
+    given({
+      info: {
+        requires_python: '>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*',
+      },
+    }).expect(['2.7', '3.5', '3.6', '3.7', '3.8'])
   })
 })
