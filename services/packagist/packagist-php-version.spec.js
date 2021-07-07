@@ -1,101 +1,117 @@
 'use strict'
 
 const { expect } = require('chai')
-const { NotFound } = require('..')
 const PackagistPhpVersion = require('./packagist-php-version.service')
 
 describe('PackagistPhpVersion', function () {
   const json = {
     packages: {
-      'frodo/the-one-package': {
-        '1.0.0': { require: { php: '^5.6 || ^7' } },
-        '2.0.0': { require: { php: '^7.2' } },
-        '3.0.0': { require: { php: '^7.4 || 8' } },
-        'dev-main': { require: { php: '^8' }, 'default-branch': true },
-      },
-      'samwise/gardening': {
-        '1.0.x-dev': {},
-        '2.0.x-dev': {},
-      },
-      'pippin/mischief': {
-        '1.0.0': {},
-        'dev-main': { require: {}, 'default-branch': true },
-      },
+      'frodo/the-one-package': [
+        {
+          version: '3.0.0',
+          require: { php: '^7.4 || 8' },
+        },
+        {
+          version: '2.0.0',
+          require: { php: '^7.2' },
+        },
+        {
+          version: '1.0.0',
+          require: { php: '^5.6 || ^7' },
+        },
+      ],
     },
   }
 
-  it('should throw NotFound when package version is missing', function () {
-    expect(() =>
+  it('should throw NotFound when package version is missing', async function () {
+    await expect(
       PackagistPhpVersion.prototype.transform({
         json,
         user: 'frodo',
         repo: 'the-one-package',
         version: '4.0.0',
       })
-    )
-      .to.throw(NotFound)
-      .with.property('prettyMessage', 'invalid version')
+    ).to.be.rejectedWith('invalid version')
   })
 
-  it('should throw NotFound when version not specified and no default branch found', function () {
-    expect(() =>
+  it('should throw NotFound when PHP version not found on package when using default release', async function () {
+    const specJson = {
+      packages: {
+        'frodo/the-one-package': [
+          {
+            version: '3.0.0',
+          },
+          {
+            version: '2.0.0',
+            require: { php: '^7.2' },
+          },
+          {
+            version: '1.0.0',
+            require: { php: '^5.6 || ^7' },
+          },
+        ],
+      },
+    }
+    await expect(
       PackagistPhpVersion.prototype.transform({
-        json,
-        user: 'samwise',
-        repo: 'gardening',
+        json: specJson,
+        user: 'frodo',
+        repo: 'the-one-package',
       })
-    )
-      .to.throw(NotFound)
-      .with.property('prettyMessage', 'invalid version')
+    ).to.be.rejectedWith('version requirement not found')
   })
 
-  it('should throw NotFound when PHP version not found on package when using default branch', function () {
-    expect(() =>
+  it('should throw NotFound when PHP version not found on package when using specified release', async function () {
+    const specJson = {
+      packages: {
+        'frodo/the-one-package': [
+          {
+            version: '3.0.0',
+            require: { php: '^7.4 || 8' },
+          },
+          {
+            version: '2.0.0',
+            require: { php: '^7.2' },
+          },
+          {
+            version: '1.0.0',
+            require: { php: '__unset' },
+          },
+        ],
+      },
+    }
+    await expect(
       PackagistPhpVersion.prototype.transform({
-        json,
-        user: 'pippin',
-        repo: 'mischief',
-      })
-    )
-      .to.throw(NotFound)
-      .with.property('prettyMessage', 'version requirement not found')
-  })
-
-  it('should throw NotFound when PHP version not found on package when using specified version', function () {
-    expect(() =>
-      PackagistPhpVersion.prototype.transform({
-        json,
-        user: 'pippin',
-        repo: 'mischief',
+        json: specJson,
+        user: 'frodo',
+        repo: 'the-one-package',
         version: '1.0.0',
       })
-    )
-      .to.throw(NotFound)
-      .with.property('prettyMessage', 'version requirement not found')
+    ).to.be.rejectedWith('version requirement not found')
   })
 
-  it('should return PHP version for the default branch', function () {
+  it('should return PHP version for the default release', async function () {
     expect(
-      PackagistPhpVersion.prototype.transform({
+      await PackagistPhpVersion.prototype.transform({
         json,
         user: 'frodo',
         repo: 'the-one-package',
-      })
-    )
-      .to.have.property('phpVersion')
-      .that.equals('^8')
-  })
-
-  it('should return PHP version for the specified branch', function () {
-    expect(
-      PackagistPhpVersion.prototype.transform({
-        json,
-        user: 'frodo',
-        repo: 'the-one-package',
-        version: '3.0.0',
       })
     )
       .to.have.property('phpVersion')
       .that.equals('^7.4 || 8')
+  })
+
+  it('should return PHP version for the specified release', async function () {
+    expect(
+      await PackagistPhpVersion.prototype.transform({
+        json,
+        user: 'frodo',
+        repo: 'the-one-package',
+        version: '2.0.0',
+      })
+    )
+      .to.have.property('phpVersion')
+      .that.equals('^7.2')
   })
 })

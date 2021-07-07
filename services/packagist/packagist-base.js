@@ -2,19 +2,16 @@
 
 const Joi = require('joi')
 const { BaseJsonService } = require('..')
+const { isStable, latest } = require('../php-version')
 
-const packageSchema = Joi.object()
-  .pattern(
-    /^/,
-    Joi.object({
-      'default-branch': Joi.bool(),
-      version: Joi.string(),
-      require: Joi.object({
-        php: Joi.string(),
-      }),
-    }).required()
-  )
-  .required()
+const packageSchema = Joi.array().items(
+  Joi.object({
+    version: Joi.string(),
+    require: Joi.object({
+      php: Joi.string(),
+    }),
+  })
+)
 
 const allVersionsSchema = Joi.object({
   packages: Joi.object().pattern(/^/, packageSchema).required(),
@@ -38,7 +35,31 @@ class BasePackagistService extends BaseJsonService {
    * @returns {object} Parsed response
    */
   async fetch({ user, repo, schema, server = 'https://packagist.org' }) {
-    const url = `${server}/p/${user.toLowerCase()}/${repo.toLowerCase()}.json`
+    const url = `${server}/p2/${user.toLowerCase()}/${repo.toLowerCase()}.json`
+
+    return this._requestJson({
+      schema,
+      url,
+    })
+  }
+
+  /**
+   * Fetch dev releases method.
+   *
+   * This method utilize composer metadata API which
+   * "... is the preferred way to access the data as it is always up to date,
+   * and dumped to static files so it is very efficient on our end." (comment from official documentation).
+   * For more information please refer to https://packagist.org/apidoc#get-package-data.
+   *
+   * @param {object} attrs Refer to individual attrs
+   * @param {string} attrs.user package user
+   * @param {string} attrs.repo package repository
+   * @param {Joi} attrs.schema Joi schema to validate the response transformed to JSON
+   * @param {string} attrs.server URL for the packagist registry server (Optional)
+   * @returns {object} Parsed response
+   */
+  async fetchDev({ user, repo, schema, server = 'https://packagist.org' }) {
+    const url = `${server}/p2/${user.toLowerCase()}/${repo.toLowerCase()}~dev.json`
 
     return this._requestJson({
       schema,
@@ -84,6 +105,43 @@ class BasePackagistService extends BaseJsonService {
 
   getPackageName(user, repo) {
     return `${user.toLowerCase()}/${repo.toLowerCase()}`
+  }
+
+  decompressResponse(json, packageName) {
+    const versions = json.packages[packageName]
+    const expanded = []
+    let expandedVersion = null
+
+    versions.forEach(versionData => {
+      if (!expandedVersion) {
+        expandedVersion = versionData
+        expanded.push(expandedVersion)
+      }
+
+      Object.entries(versionData).forEach(([key, value]) => {
+        if (value === '__unset') {
+          delete expandedVersion[key]
+        } else {
+          expandedVersion[key] = value
+        }
+      })
+
+      expandedVersion = { ...expandedVersion }
+
+      expanded.push(expandedVersion)
+    })
+
+    return expanded
+  }
+
+  findRelease(json, versions = []) {
+    json.forEach(version => {
+      versions.push(version.version)
+    })
+
+    const release = latest(versions.filter(isStable)) || latest(versions)
+
+    return json.filter(version => version.version === release)[0]
   }
 }
 
